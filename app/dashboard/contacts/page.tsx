@@ -6,6 +6,7 @@ import { useState, useEffect } from "react"
 import { AuthGuard } from "@/components/auth-guard"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { ContactForm } from "@/components/contact-form"
+import { VCFImportDialog } from "@/components/vcf-import"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -37,6 +38,7 @@ export default function ContactsPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
   const [editingContact, setEditingContact] = useState<Contact | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -125,6 +127,35 @@ export default function ContactsPage() {
     }
   }
 
+  const handleImportVCF = async (file: File) => {
+    setIsImportDialogOpen(false)
+    try {
+      const formData = new FormData()
+      formData.append('vcfFile', file)
+
+      const response = await fetch('/api/contacts/import', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Import failed')
+      }
+
+      if (result.success) {
+        alert(result.message)
+        fetchContacts() // Refresh the list
+      } else {
+        alert('Import failed: ' + result.message)
+      }
+    } catch (error) {
+      console.error('Import error:', error)
+      alert('Import failed: ' + (error instanceof Error ? error.message : 'Unknown error'))
+    }
+  }
+
   const filteredContacts = contacts.filter(
     (contact) =>
       contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -142,6 +173,9 @@ export default function ContactsPage() {
               <p className="text-gray-600">Manage your client contacts</p>
             </div>
             <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setIsImportDialogOpen(true)}>
+                Import VCF
+              </Button>
               <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                 <DialogTrigger asChild>
                   <Button>
@@ -263,6 +297,13 @@ export default function ContactsPage() {
               />
             </DialogContent>
           </Dialog>
+
+          {/* VCF Import Dialog */}
+          <VCFImportDialog
+            isOpen={isImportDialogOpen}
+            onClose={() => setIsImportDialogOpen(false)}
+            onImport={handleImportVCF}
+          />
         </div>
       </DashboardLayout>
     </AuthGuard>
