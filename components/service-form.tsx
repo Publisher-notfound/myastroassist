@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SearchableContactSelector } from '@/components/searchable-contact-selector'
 
 interface Contact {
   id: string
@@ -81,18 +82,11 @@ export function ServiceForm({ initialData = {}, onSubmit, submitLabel, contacts,
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="contact_id">Client *</Label>
-        <Select value={formData.contact_id} onValueChange={(value) => updateFormData('contact_id', value)}>
-          <SelectTrigger>
-            <SelectValue placeholder="Select a client" />
-          </SelectTrigger>
-          <SelectContent>
-            {contacts.map((contact) => (
-              <SelectItem key={contact.id} value={contact.id}>
-                {contact.name} {contact.phone && `(${contact.phone})`}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableContactSelector
+          value={formData.contact_id}
+          onChange={(contactId) => updateFormData('contact_id', contactId)}
+          placeholder="Search for a client..."
+        />
       </div>
 
       <div className="space-y-2">

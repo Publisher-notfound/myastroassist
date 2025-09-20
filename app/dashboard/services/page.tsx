@@ -83,7 +83,7 @@ export default function ServicesPage() {
 
       if (servicesError) throw servicesError
 
-      // Fetch contacts
+      // Fetch contacts - remove limit to get all contacts for the service form
       const { data: contactsData, error: contactsError } = await supabase
         .from("contacts")
         .select("id, name, phone, email")
