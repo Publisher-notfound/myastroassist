@@ -5,11 +5,10 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { AuthGuard } from "@/components/auth-guard"
 import { DashboardLayout } from "@/components/dashboard-layout"
+import { ContactForm } from "@/components/contact-form"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import {
   Dialog,
   DialogContent,
@@ -40,13 +39,6 @@ export default function ContactsPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editingContact, setEditingContact] = useState<Contact | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [formData, setFormData] = useState({
-    name: "",
-    phone: "",
-    email: "",
-    address: "",
-    notes: "",
-  })
 
   const searchParams = useSearchParams()
   const supabase = createClient()
@@ -71,55 +63,52 @@ export default function ContactsPage() {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleAddContact = async (formData: { name: string; phone: string; email: string; address: string; notes: string }) => {
     try {
-      if (editingContact) {
-        const { error } = await supabase
-          .from("contacts")
-          .update({
-            name: formData.name,
-            phone: formData.phone || null,
-            email: formData.email || null,
-            address: formData.address || null,
-            notes: formData.notes || null,
-          })
-          .eq("id", editingContact.id)
+      const { error } = await supabase.from("contacts").insert([
+        {
+          name: formData.name,
+          phone: formData.phone || null,
+          email: formData.email || null,
+          address: formData.address || null,
+          notes: formData.notes || null,
+        },
+      ])
 
-        if (error) throw error
-        setIsEditDialogOpen(false)
-        setEditingContact(null)
-      } else {
-        const { error } = await supabase.from("contacts").insert([
-          {
-            name: formData.name,
-            phone: formData.phone || null,
-            email: formData.email || null,
-            address: formData.address || null,
-            notes: formData.notes || null,
-          },
-        ])
-
-        if (error) throw error
-        setIsAddDialogOpen(false)
-      }
-
-      setFormData({ name: "", phone: "", email: "", address: "", notes: "" })
+      if (error) throw error
+      setIsAddDialogOpen(false)
       fetchContacts()
     } catch (error) {
       console.error("Error saving contact:", error)
     }
   }
 
+  const handleUpdateContact = async (formData: { name: string; phone: string; email: string; address: string; notes: string }) => {
+    if (!editingContact) return
+
+    try {
+      const { error } = await supabase
+        .from("contacts")
+        .update({
+          name: formData.name,
+          phone: formData.phone || null,
+          email: formData.email || null,
+          address: formData.address || null,
+          notes: formData.notes || null,
+        })
+        .eq("id", editingContact.id)
+
+      if (error) throw error
+      setIsEditDialogOpen(false)
+      setEditingContact(null)
+      fetchContacts()
+    } catch (error) {
+      console.error("Error updating contact:", error)
+    }
+  }
+
   const handleEdit = (contact: Contact) => {
     setEditingContact(contact)
-    setFormData({
-      name: contact.name,
-      phone: contact.phone || "",
-      email: contact.email || "",
-      address: contact.address || "",
-      notes: contact.notes || "",
-    })
     setIsEditDialogOpen(true)
   }
 
@@ -141,56 +130,6 @@ export default function ContactsPage() {
       contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       contact.phone?.includes(searchTerm) ||
       contact.email?.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
-
-  const ContactForm = () => (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="name">Name *</Label>
-        <Input
-          id="name"
-          value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          required
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="phone">Phone</Label>
-        <Input
-          id="phone"
-          value={formData.phone}
-          onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="email">Email</Label>
-        <Input
-          id="email"
-          type="email"
-          value={formData.email}
-          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="address">Address</Label>
-        <Textarea
-          id="address"
-          value={formData.address}
-          onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="notes">Notes</Label>
-        <Textarea
-          id="notes"
-          value={formData.notes}
-          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-        />
-      </div>
-      <Button type="submit" className="w-full">
-        {editingContact ? "Update Contact" : "Add Contact"}
-      </Button>
-    </form>
   )
 
   return (
@@ -215,7 +154,10 @@ export default function ContactsPage() {
                     <DialogTitle>Add New Contact</DialogTitle>
                     <DialogDescription>Add a new client to your contact list</DialogDescription>
                   </DialogHeader>
-                  <ContactForm />
+                  <ContactForm
+                    onSubmit={handleAddContact}
+                    submitLabel="Add Contact"
+                  />
                 </DialogContent>
               </Dialog>
             </div>
@@ -308,7 +250,17 @@ export default function ContactsPage() {
                 <DialogTitle>Edit Contact</DialogTitle>
                 <DialogDescription>Update contact information</DialogDescription>
               </DialogHeader>
-              <ContactForm />
+              <ContactForm
+                initialData={{
+                  name: editingContact?.name || '',
+                  phone: editingContact?.phone || '',
+                  email: editingContact?.email || '',
+                  address: editingContact?.address || '',
+                  notes: editingContact?.notes || '',
+                }}
+                onSubmit={handleUpdateContact}
+                submitLabel="Update Contact"
+              />
             </DialogContent>
           </Dialog>
         </div>

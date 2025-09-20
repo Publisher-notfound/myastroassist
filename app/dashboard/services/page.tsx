@@ -5,12 +5,10 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { AuthGuard } from "@/components/auth-guard"
 import { DashboardLayout } from "@/components/dashboard-layout"
+import { ServiceForm } from "@/components/service-form"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -60,15 +58,6 @@ export default function ServicesPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editingService, setEditingService] = useState<Service | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [formData, setFormData] = useState({
-    contact_id: "",
-    service_type_id: "",
-    duration: "",
-    payment_amount: "",
-    payment_mode: "",
-    payment_status: "unpaid",
-    notes: "",
-  })
 
   const searchParams = useSearchParams()
   const supabase = createClient()
@@ -120,8 +109,15 @@ export default function ServicesPage() {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleAddService = async (formData: {
+    contact_id: string
+    service_type_id: string
+    duration: string
+    payment_amount: string
+    payment_mode: string
+    payment_status: string
+    notes: string
+  }) => {
     try {
       const serviceData = {
         contact_id: formData.contact_id,
@@ -133,45 +129,51 @@ export default function ServicesPage() {
         notes: formData.notes || null,
       }
 
-      if (editingService) {
-        const { error } = await supabase.from("services").update(serviceData).eq("id", editingService.id)
+      const { error } = await supabase.from("services").insert([serviceData])
+      if (error) throw error
 
-        if (error) throw error
-        setIsEditDialogOpen(false)
-        setEditingService(null)
-      } else {
-        const { error } = await supabase.from("services").insert([serviceData])
-
-        if (error) throw error
-        setIsAddDialogOpen(false)
-      }
-
-      setFormData({
-        contact_id: "",
-        service_type_id: "",
-        duration: "",
-        payment_amount: "",
-        payment_mode: "",
-        payment_status: "unpaid",
-        notes: "",
-      })
+      setIsAddDialogOpen(false)
       fetchData()
     } catch (error) {
       console.error("Error saving service:", error)
     }
   }
 
+  const handleUpdateService = async (formData: {
+    contact_id: string
+    service_type_id: string
+    duration: string
+    payment_amount: string
+    payment_mode: string
+    payment_status: string
+    notes: string
+  }) => {
+    if (!editingService) return
+
+    try {
+      const serviceData = {
+        contact_id: formData.contact_id,
+        service_type_id: formData.service_type_id,
+        duration: formData.duration ? Number.parseInt(formData.duration) : null,
+        payment_amount: formData.payment_amount ? Number.parseFloat(formData.payment_amount) : null,
+        payment_mode: formData.payment_mode || null,
+        payment_status: formData.payment_status,
+        notes: formData.notes || null,
+      }
+
+      const { error } = await supabase.from("services").update(serviceData).eq("id", editingService.id)
+      if (error) throw error
+
+      setIsEditDialogOpen(false)
+      setEditingService(null)
+      fetchData()
+    } catch (error) {
+      console.error("Error updating service:", error)
+    }
+  }
+
   const handleEdit = (service: Service) => {
     setEditingService(service)
-    setFormData({
-      contact_id: service.contact_id,
-      service_type_id: service.service_type_id,
-      duration: service.duration?.toString() || "",
-      payment_amount: service.payment_amount?.toString() || "",
-      payment_mode: service.payment_mode || "",
-      payment_status: service.payment_status,
-      notes: service.notes || "",
-    })
     setIsEditDialogOpen(true)
   }
 
@@ -192,115 +194,6 @@ export default function ServicesPage() {
     (service) =>
       service.contacts.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       service.service_types.name.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
-
-  const ServiceForm = () => (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="contact_id">Client *</Label>
-        <Select value={formData.contact_id} onValueChange={(value) => setFormData({ ...formData, contact_id: value })}>
-          <SelectTrigger>
-            <SelectValue placeholder="Select a client" />
-          </SelectTrigger>
-          <SelectContent>
-            {contacts.map((contact) => (
-              <SelectItem key={contact.id} value={contact.id}>
-                {contact.name} {contact.phone && `(${contact.phone})`}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="service_type_id">Service Type *</Label>
-        <Select
-          value={formData.service_type_id}
-          onValueChange={(value) => setFormData({ ...formData, service_type_id: value })}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select service type" />
-          </SelectTrigger>
-          <SelectContent>
-            {serviceTypes.map((type) => (
-              <SelectItem key={type.id} value={type.id}>
-                {type.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="duration">Duration (minutes)</Label>
-        <Input
-          id="duration"
-          type="number"
-          value={formData.duration}
-          onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
-          placeholder="e.g., 60"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="payment_amount">Payment Amount (₹)</Label>
-        <Input
-          id="payment_amount"
-          type="number"
-          step="0.01"
-          value={formData.payment_amount}
-          onChange={(e) => setFormData({ ...formData, payment_amount: e.target.value })}
-          placeholder="e.g., 1500"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="payment_mode">Payment Mode</Label>
-        <Select
-          value={formData.payment_mode}
-          onValueChange={(value) => setFormData({ ...formData, payment_mode: value })}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select payment mode" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="cash">Cash</SelectItem>
-            <SelectItem value="upi">UPI</SelectItem>
-            <SelectItem value="card">Card</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="payment_status">Payment Status *</Label>
-        <Select
-          value={formData.payment_status}
-          onValueChange={(value) => setFormData({ ...formData, payment_status: value })}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="paid">Paid</SelectItem>
-            <SelectItem value="unpaid">Unpaid</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="notes">Notes</Label>
-        <Textarea
-          id="notes"
-          value={formData.notes}
-          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-          placeholder="Any additional notes about the service..."
-        />
-      </div>
-
-      <Button type="submit" className="w-full">
-        {editingService ? "Update Service" : "Log Service"}
-      </Button>
-    </form>
   )
 
   return (
@@ -325,7 +218,12 @@ export default function ServicesPage() {
                     <DialogTitle>Log New Service</DialogTitle>
                     <DialogDescription>Record a service provided to a client</DialogDescription>
                   </DialogHeader>
-                  <ServiceForm />
+                  <ServiceForm
+                    onSubmit={handleAddService}
+                    submitLabel="Log Service"
+                    contacts={contacts}
+                    serviceTypes={serviceTypes}
+                  />
                 </DialogContent>
               </Dialog>
             </div>
@@ -443,7 +341,21 @@ export default function ServicesPage() {
                 <DialogTitle>Edit Service</DialogTitle>
                 <DialogDescription>Update service information</DialogDescription>
               </DialogHeader>
-              <ServiceForm />
+              <ServiceForm
+                initialData={{
+                  contact_id: editingService?.contact_id || '',
+                  service_type_id: editingService?.service_type_id || '',
+                  duration: editingService?.duration?.toString() || '',
+                  payment_amount: editingService?.payment_amount?.toString() || '',
+                  payment_mode: editingService?.payment_mode || '',
+                  payment_status: editingService?.payment_status || 'unpaid',
+                  notes: editingService?.notes || '',
+                }}
+                onSubmit={handleUpdateService}
+                submitLabel="Update Service"
+                contacts={contacts}
+                serviceTypes={serviceTypes}
+              />
             </DialogContent>
           </Dialog>
         </div>
