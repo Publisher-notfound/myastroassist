@@ -10,6 +10,11 @@ export const metadata: Metadata = {
   title: "MyAstroAssist - Astrology Business Management",
   description: "Professional astrology business management system",
   generator: "v0.app",
+  icons: {
+    icon: "/shri.ico",
+    shortcut: "/shri.ico",
+    apple: "/shri.png",
+  },
 }
 
 export default function RootLayout({
