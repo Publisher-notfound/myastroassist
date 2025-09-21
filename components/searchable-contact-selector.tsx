@@ -21,6 +21,8 @@ interface SearchableContactSelectorProps {
   placeholder?: string
   disabled?: boolean
   className?: string
+  contacts?: Contact[]
+  selectedContact?: Contact
 }
 
 export function SearchableContactSelector({
@@ -29,27 +31,46 @@ export function SearchableContactSelector({
   placeholder = "Search for a client...",
   disabled = false,
   className,
+  contacts = [],
+  selectedContact,
 }: SearchableContactSelectorProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
+  const [currentSelectedContact, setCurrentSelectedContact] = useState<Contact | null>(null)
   const [searchResults, setSearchResults] = useState<Contact[]>([])
   const [hasSearched, setHasSearched] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  // Set selected contact when value changes (simple display)
+  // Initialize with selectedContact if provided (one time only)
   useEffect(() => {
-    if (selectedContact && selectedContact.id === value) return
-    else if (value) {
-      // We don't have full contact data for display, just show what's available
-      setSearchTerm(value)
-    } else {
-      setSelectedContact(null)
+    if (selectedContact && !currentSelectedContact) {
+      // Only set if we haven't already initialized
+      setCurrentSelectedContact(selectedContact)
+      setSearchTerm(selectedContact.name)
+      if (!value || value !== selectedContact.id) {
+        onChange(selectedContact.id)
+      }
+    }
+  }, [selectedContact, currentSelectedContact, value, onChange])
+
+  // Handle value changes from parent (like when lookup succeeds)
+  useEffect(() => {
+    if (!selectedContact && value && contacts.length > 0 && !currentSelectedContact) {
+      // Only try to lookup if we're not pre-filled and we have contacts
+      const foundContact = contacts.find(contact => contact.id === value)
+      if (foundContact && foundContact.id !== currentSelectedContact?.id) {
+        setCurrentSelectedContact(foundContact)
+        setSearchTerm(foundContact.name)
+      }
+    }
+
+    if (!value && !selectedContact && currentSelectedContact) {
+      setCurrentSelectedContact(null)
       setSearchTerm('')
     }
-  }, [value])
+  }, [value, contacts, currentSelectedContact, selectedContact])
 
   // Execute search call to API
   const executeSearch = async () => {
@@ -92,7 +113,7 @@ export function SearchableContactSelector({
   }
 
   const handleContactSelect = (contact: Contact) => {
-    setSelectedContact(contact)
+    setCurrentSelectedContact(contact)
     setSearchTerm(contact.name)
     setSearchResults([])
     setIsOpen(false)
@@ -100,7 +121,7 @@ export function SearchableContactSelector({
   }
 
   const handleClear = () => {
-    setSelectedContact(null)
+    setCurrentSelectedContact(null)
     setSearchTerm('')
     setSearchResults([])
     setIsOpen(false)
@@ -119,7 +140,7 @@ export function SearchableContactSelector({
     }, 200)
   }
 
-  const displayValue = selectedContact ? selectedContact.name : searchTerm
+  const displayValue = currentSelectedContact ? currentSelectedContact.name : searchTerm
 
   return (
     <div className={cn("relative", className)}>
@@ -155,7 +176,7 @@ export function SearchableContactSelector({
             <Search className="h-3 w-3" />
           </Button>
 
-          {selectedContact && (
+          {currentSelectedContact && (
             <Button
               type="button"
               variant="ghost"

@@ -1,11 +1,11 @@
-'use client'
+"use client"
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import { SearchableContactSelector } from '@/components/searchable-contact-selector'
 
 interface Contact {
@@ -20,33 +20,27 @@ interface ServiceType {
   name: string
 }
 
-interface ServiceFormData {
+interface ReservationFormData {
   contact_id: string
   service_type_id: string
-  duration: string
-  payment_amount: string
-  payment_mode: string
-  payment_status: string
+  reservation_time: string
   notes: string
 }
 
-interface ServiceFormProps {
-  initialData?: Partial<ServiceFormData>
-  onSubmit: (data: ServiceFormData) => Promise<void>
+interface ReservationFormProps {
+  initialData?: Partial<ReservationFormData>
+  onSubmit: (data: ReservationFormData) => Promise<void>
   submitLabel: string
   contacts: Contact[]
   serviceTypes: ServiceType[]
-  selectedContact?: Contact
+  selectedDate: string // YYYY-MM-DD format
 }
 
-export function ServiceForm({ initialData = {}, onSubmit, submitLabel, contacts, serviceTypes, selectedContact }: ServiceFormProps) {
-  const [formData, setFormData] = useState<ServiceFormData>({
+export function ReservationForm({ initialData = {}, onSubmit, submitLabel, contacts, serviceTypes, selectedDate }: ReservationFormProps) {
+  const [formData, setFormData] = useState<ReservationFormData>({
     contact_id: '',
     service_type_id: '',
-    duration: '',
-    payment_amount: '',
-    payment_mode: 'cash',
-    payment_status: 'paid',
+    reservation_time: '',
     notes: '',
     ...initialData,
   })
@@ -55,8 +49,6 @@ export function ServiceForm({ initialData = {}, onSubmit, submitLabel, contacts,
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (isSubmitting) return // Prevent double submission
-
     setIsSubmitting(true)
     try {
       await onSubmit(formData)
@@ -65,10 +57,7 @@ export function ServiceForm({ initialData = {}, onSubmit, submitLabel, contacts,
         setFormData({
           contact_id: '',
           service_type_id: '',
-          duration: '',
-          payment_amount: '',
-          payment_mode: 'cash',
-          payment_status: 'paid',
+          reservation_time: '',
           notes: '',
         })
       }
@@ -77,20 +66,31 @@ export function ServiceForm({ initialData = {}, onSubmit, submitLabel, contacts,
     }
   }
 
-  const updateFormData = (field: keyof ServiceFormData, value: string) => {
+  const updateFormData = (field: keyof ReservationFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Selected Date Display */}
+      <div className="p-3 bg-gray-50 rounded-lg border">
+        <div className="text-sm font-medium text-gray-600">Reservation Date</div>
+        <div className="text-lg font-semibold">
+          {new Date(selectedDate + 'T12:00').toLocaleDateString('en-IN', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          })}
+        </div>
+      </div>
+
       <div className="space-y-2">
         <Label htmlFor="contact_id">Client *</Label>
         <SearchableContactSelector
           value={formData.contact_id}
           onChange={(contactId) => updateFormData('contact_id', contactId)}
           placeholder="Search for a client..."
-          contacts={contacts}
-          selectedContact={selectedContact}
         />
       </div>
 
@@ -114,59 +114,13 @@ export function ServiceForm({ initialData = {}, onSubmit, submitLabel, contacts,
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="duration">Duration (minutes)</Label>
+        <Label htmlFor="reservation_time">Appointment Time *</Label>
         <Input
-          id="duration"
-          type="number"
-          value={formData.duration}
-          onChange={(e) => updateFormData('duration', e.target.value)}
-          placeholder="e.g., 60"
+          id="reservation_time"
+          type="time"
+          value={formData.reservation_time}
+          onChange={(e) => updateFormData('reservation_time', e.target.value)}
         />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="payment_amount">Payment Amount (₹)</Label>
-        <Input
-          id="payment_amount"
-          type="number"
-          step="0.01"
-          value={formData.payment_amount}
-          onChange={(e) => updateFormData('payment_amount', e.target.value)}
-          placeholder="e.g., 1500"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="payment_mode">Payment Mode</Label>
-        <Select
-          value={formData.payment_mode}
-          onValueChange={(value) => updateFormData('payment_mode', value)}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select payment mode" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="cash">Cash</SelectItem>
-            <SelectItem value="upi">UPI</SelectItem>
-            <SelectItem value="card">Card</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="payment_status">Payment Status *</Label>
-        <Select
-          value={formData.payment_status}
-          onValueChange={(value) => updateFormData('payment_status', value)}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="paid">Paid</SelectItem>
-            <SelectItem value="unpaid">Unpaid</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       <div className="space-y-2">
