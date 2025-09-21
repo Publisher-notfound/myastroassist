@@ -6,7 +6,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { clearAuthSession } from "@/lib/auth"
-import { Users, FileText, BarChart3, LogOut, Menu, X } from "lucide-react"
+import { Users, FileText, BarChart3, LogOut, Menu, X, Calendar } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
@@ -28,6 +28,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     { name: "Dashboard", href: "/dashboard", icon: BarChart3 },
     { name: "Contacts", href: "/dashboard/contacts", icon: Users },
     { name: "Services", href: "/dashboard/services", icon: FileText },
+    { name: "Calendar", href: "/dashboard/calendar", icon: Calendar },
     { name: "Reports", href: "/dashboard/reports", icon: BarChart3 },
   ]
 

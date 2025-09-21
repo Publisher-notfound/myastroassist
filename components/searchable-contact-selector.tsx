@@ -109,9 +109,7 @@ export function SearchableContactSelector({
   }
 
   const handleInputFocus = () => {
-    if (searchResults.length > 0) {
-      setIsOpen(true)
-    }
+    setIsOpen(true)
   }
 
   const handleInputBlur = () => {
