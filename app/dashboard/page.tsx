@@ -28,6 +28,13 @@ export default function DashboardPage() {
     yesterdayServices: 0,
   })
 
+  const [expenseStats, setExpenseStats] = useState({
+    thisWeekExpenses: 0,
+    thisMonthExpenses: 0,
+    thisWeekExpenseCount: 0,
+    thisMonthExpenseCount: 0,
+  })
+
   const [dailyBreakdown, setDailyBreakdown] = useState<{ date: string, revenue: number, services: number }[]>([])
 
   const [todayReservations, setTodayReservations] = useState<Array<{
@@ -184,6 +191,18 @@ export default function DashboardPage() {
         .gte("created_at", fourteenDaysAgo.toISOString())
         .order("created_at", { ascending: true })
 
+      // Fetch this week's expenses
+      const { data: weekExpenses } = await supabase
+        .from("expenses")
+        .select("amount, expense_date")
+        .gte("expense_date", weekAgo.toISOString().split('T')[0])
+
+      // Fetch this month's expenses
+      const { data: monthExpenses } = await supabase
+        .from("expenses")
+        .select("amount, expense_date")
+        .gte("expense_date", startOfMonth.toISOString().split('T')[0])
+
       // Fetch pending payments
       const { data: pendingServices } = await supabase
         .from("services")
@@ -289,6 +308,20 @@ export default function DashboardPage() {
 
       setDailyBreakdown(dailyData)
 
+      // Calculate expense stats
+      const weekExpenseTotal = weekExpenses?.reduce((sum, expense) =>
+        sum + (expense.amount || 0), 0) || 0
+
+      const monthExpenseTotal = monthExpenses?.reduce((sum, expense) =>
+        sum + (expense.amount || 0), 0) || 0
+
+      setExpenseStats({
+        thisWeekExpenses: weekExpenseTotal,
+        thisMonthExpenses: monthExpenseTotal,
+        thisWeekExpenseCount: weekExpenses?.length || 0,
+        thisMonthExpenseCount: monthExpenses?.length || 0,
+      })
+
       setTodayReservations(transformedReservations)
       // Note: contacts and serviceTypes are already fetched and stored above in the state when the component initially loads
       // We don't need to refetch them here as they're already available for the service form dialog
@@ -377,6 +410,38 @@ export default function DashboardPage() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {dailyStats.thisWeekServices} services this week
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Expense Stats */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">This Week Expenses</CardTitle>
+                <DollarSign className="h-4 w-4 text-red-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-red-600">
+                  ₹{isLoading ? "..." : expenseStats.thisWeekExpenses.toFixed(2)}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {expenseStats.thisWeekExpenseCount} expenses this week
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">This Month Expenses</CardTitle>
+                <DollarSign className="h-4 w-4 text-red-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-red-600">
+                  ₹{isLoading ? "..." : expenseStats.thisMonthExpenses.toFixed(2)}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {expenseStats.thisMonthExpenseCount} expenses this month
                 </p>
               </CardContent>
             </Card>
@@ -518,6 +583,20 @@ export default function DashboardPage() {
                   <Button variant="outline" className="w-full">
                     <Calendar className="h-4 w-4 mr-2" />
                     Manage Reservations
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Track Expenses</CardTitle>
+                <CardDescription>Record and track business expenses</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Link href="/dashboard/expenses">
+                  <Button variant="default" className="w-full">
+                    <DollarSign className="h-4 w-4 mr-2" />
+                    View Expenses
                   </Button>
                 </Link>
               </CardContent>
