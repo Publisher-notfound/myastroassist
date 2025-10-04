@@ -589,6 +589,20 @@ export default function DashboardPage() {
             </Card>
             <Card>
               <CardHeader>
+                <CardTitle>Log Missed Services</CardTitle>
+                <CardDescription>Record services from past dates</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Link href="/dashboard/backlogs">
+                  <Button variant="default" className="w-full">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Backlog Services
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
                 <CardTitle>Track Expenses</CardTitle>
                 <CardDescription>Record and track business expenses</CardDescription>
               </CardHeader>
