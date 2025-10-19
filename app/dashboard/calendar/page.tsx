@@ -31,7 +31,7 @@ interface SelectedDateData {
   date: Date
   revenue: number
   services: number
-  serviceDetails: typeof CalendarData.serviceDetails
+  serviceDetails: CalendarData['serviceDetails']
 }
 
 export default function CalendarPage() {
@@ -79,18 +79,21 @@ export default function CalendarPage() {
       const dateMap = new Map<string, CalendarData>()
 
       services?.forEach((service) => {
-        const date = new Date(service.created_at).toISOString().split('T')[0] // YYYY-MM-DD
+        // Get the local date that the user intended, ignoring the time portion
+        // This handles both normal services (logged at actual time) and backlogs (set to midnight UTC)
+        const serviceTimestamp = new Date(service.created_at)
+        const localDateStr = `${serviceTimestamp.getFullYear()}-${String(serviceTimestamp.getMonth() + 1).padStart(2, '0')}-${String(serviceTimestamp.getDate()).padStart(2, '0')}`
 
-        if (!dateMap.has(date)) {
-          dateMap.set(date, {
-            date,
+        if (!dateMap.has(localDateStr)) {
+          dateMap.set(localDateStr, {
+            date: localDateStr,
             revenue: 0,
             services: 0,
             serviceDetails: []
           })
         }
 
-        const dateData = dateMap.get(date)!
+        const dateData = dateMap.get(localDateStr)!
 
         // Only count paid services for revenue
         if (service.payment_status === "paid") {
@@ -120,8 +123,9 @@ export default function CalendarPage() {
   }
 
   const handleDateClick = (date: Date) => {
-    const dateStr = date.toISOString().split('T')[0]
-    const dateData = calendarData.get(dateStr)
+    // Use same local date logic as grouping
+    const localDateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+    const dateData = calendarData.get(localDateStr)
 
     if (dateData) {
       setSelectedDate({
@@ -140,13 +144,13 @@ export default function CalendarPage() {
 
   const modifiers = {
     hasRevenue: (date: Date) => {
-      const dateStr = date.toISOString().split('T')[0]
-      const data = calendarData.get(dateStr)
+      const localDateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+      const data = calendarData.get(localDateStr)
       return Boolean(data && data.revenue > 0)
     },
     hasServices: (date: Date) => {
-      const dateStr = date.toISOString().split('T')[0]
-      const data = calendarData.get(dateStr)
+      const localDateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+      const data = calendarData.get(localDateStr)
       return Boolean(data && data.services > 0)
     }
   }
