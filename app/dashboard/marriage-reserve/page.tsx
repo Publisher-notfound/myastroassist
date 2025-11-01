@@ -1,17 +1,19 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { AuthGuard } from "@/components/auth-guard"
 import { DashboardLayout } from "@/components/dashboard-layout"
-import { ReservationForm } from "@/components/reservation-form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { DayPicker } from "react-day-picker"
 import { createClient } from "@/lib/supabase/client"
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Plus, Edit, Trash2, Search } from "lucide-react"
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Plus, Edit, Trash2, Search, ArrowLeft } from "lucide-react"
+import { SearchableContactSelector } from "@/components/searchable-contact-selector"
 import "react-day-picker/dist/style.css"
 
 interface Contact {
@@ -21,51 +23,51 @@ interface Contact {
   email: string | null
 }
 
-interface ServiceType {
+interface MarriageReservation {
   id: string
-  name: string
+  contact_id: string
+  reservation_date: string
+  notes: string | null
+  created_at: string
+  contacts: Contact
 }
 
 interface ReservationData {
   date: string
-  reservations: Array<{
-    id: string
-    reservation_time: string
-    contacts: Contact
-    service_types: ServiceType
-    notes: string | null
-    type: 'regular' | 'marriage' // Add type to distinguish
-  }>
+  reservations: MarriageReservation[]
 }
 
-export default function ReservePage() {
+export default function MarriageReservePage() {
+  const searchParams = useSearchParams()
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
-  const [selectedReservation, setSelectedReservation] = useState<{
-    id: string
-    reservation_date: string
-    reservation_time: string
-    contacts: Contact
-    service_types: ServiceType
-    notes: string | null
-  } | null>(null)
+  const [selectedReservation, setSelectedReservation] = useState<MarriageReservation | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
   const [contacts, setContacts] = useState<Contact[]>([])
-  const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([])
   const [reservations, setReservations] = useState<Map<string, ReservationData>>(new Map())
   const [isLoading, setIsLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
   const [viewDate, setViewDate] = useState<Date | null>(null)
   const [isViewCalendarOpen, setIsViewCalendarOpen] = useState(false)
   const [viewedDayReservations, setViewedDayReservations] = useState<Map<string, ReservationData>>(new Map())
-  const [isMarriageReservation, setIsMarriageReservation] = useState(false)
 
   const supabase = createClient()
 
   useEffect(() => {
     fetchData()
-  }, [currentMonth])
+
+    // Check for URL parameters to pre-fill form
+    const dateParam = searchParams.get('date')
+    const contactParam = searchParams.get('contact')
+    const notesParam = searchParams.get('notes')
+
+    if (dateParam) {
+      const date = new Date(dateParam + 'T12:00')
+      setSelectedDate(date)
+      setIsDialogOpen(true)
+    }
+  }, [currentMonth, searchParams])
 
   const fetchData = async () => {
     try {
@@ -81,22 +83,9 @@ export default function ReservePage() {
       startDate.setDate(startDate.getDate() - 7)
       endDate.setDate(endDate.getDate() + 7)
 
-      // Fetch contacts, service types, and both types of reservations
-      const [contactsResponse, serviceTypesResponse, reservationsResponse, marriageReservationsResponse] = await Promise.all([
+      // Fetch contacts
+      const [contactsResponse, reservationsResponse] = await Promise.all([
         supabase.from("contacts").select("id, name, phone, email").order("name"),
-        supabase.from("service_types").select("*").order("name"),
-        supabase
-          .from("reservations")
-          .select(`
-            *,
-            contacts (name, phone),
-            service_types (name)
-          `)
-          .gte("reservation_date", `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`)
-          .lte("reservation_date", `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`)
-          .eq("status", "active")
-          .order("reservation_date", { ascending: true })
-          .order("reservation_time", { ascending: true }),
         supabase
           .from("marriage_reservations")
           .select(`
@@ -110,17 +99,12 @@ export default function ReservePage() {
       ])
 
       if (contactsResponse.error) throw contactsResponse.error
-      if (serviceTypesResponse.error) throw serviceTypesResponse.error
       if (reservationsResponse.error) throw reservationsResponse.error
-      if (marriageReservationsResponse.error) throw marriageReservationsResponse.error
 
       setContacts(contactsResponse.data || [])
-      setServiceTypes(serviceTypesResponse.data || [])
 
       // Group reservations by date
       const reservationsMap = new Map<string, ReservationData>()
-
-      // Add regular reservations
       reservationsResponse.data?.forEach((reservation: any) => {
         const date = reservation.reservation_date
         if (!reservationsMap.has(date)) {
@@ -129,29 +113,7 @@ export default function ReservePage() {
             reservations: []
           })
         }
-        reservationsMap.get(date)!.reservations.push({
-          ...reservation,
-          type: 'regular'
-        })
-      })
-
-      // Add marriage reservations
-      marriageReservationsResponse.data?.forEach((reservation: any) => {
-        const date = reservation.reservation_date
-        if (!reservationsMap.has(date)) {
-          reservationsMap.set(date, {
-            date,
-            reservations: []
-          })
-        }
-        reservationsMap.get(date)!.reservations.push({
-          id: reservation.id,
-          reservation_time: '00:00', // Marriage reservations don't have specific times
-          contacts: reservation.contacts,
-          service_types: { id: 'marriage', name: 'Marriage Ceremony' }, // Mock service type
-          notes: reservation.notes,
-          type: 'marriage'
-        })
+        reservationsMap.get(date)!.reservations.push(reservation)
       })
 
       setReservations(reservationsMap)
@@ -179,8 +141,6 @@ export default function ReservePage() {
 
   const handleCreateReservation = async (formData: {
     contact_id: string
-    service_type_id: string
-    reservation_time: string
     notes: string
   }) => {
     if (!selectedDate) return
@@ -189,24 +149,12 @@ export default function ReservePage() {
       // Create local date string to avoid timezone offset
       const localDateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`
 
-      // Check if this is a marriage reservation
-      const selectedServiceType = serviceTypes.find(type => type.id === formData.service_type_id)
-      const isMarriage = selectedServiceType?.name === 'Marriage Ceremony'
-
-      if (isMarriage) {
-        // Redirect to marriage reservation page
-        window.location.href = `/dashboard/marriage-reserve?date=${localDateStr}&contact=${formData.contact_id}&notes=${encodeURIComponent(formData.notes || '')}`
-        return
-      }
-
-      const response = await fetch('/api/reservations', {
+      const response = await fetch('/api/marriage-reservations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contact_id: formData.contact_id,
-          service_type_id: formData.service_type_id,
-          reservation_date: localDateStr, // YYYY-MM-DD without timezone conversion
-          reservation_time: formData.reservation_time,
+          reservation_date: localDateStr,
           notes: formData.notes
         })
       })
@@ -227,12 +175,8 @@ export default function ReservePage() {
     }
   }
 
-  const handleEditReservation = (reservation: any) => {
-    const fullReservation = {
-      ...reservation,
-      reservation_date: reservation.reservation_date
-    }
-    setSelectedReservation(fullReservation)
+  const handleEditReservation = (reservation: MarriageReservation) => {
+    setSelectedReservation(reservation)
     const reservationDate = new Date(reservation.reservation_date + 'T12:00')
     setSelectedDate(reservationDate)
     setIsEditing(true)
@@ -241,8 +185,6 @@ export default function ReservePage() {
 
   const handleUpdateReservation = async (formData: {
     contact_id: string
-    service_type_id: string
-    reservation_time: string
     notes: string
   }) => {
     if (!selectedReservation || !selectedDate) return
@@ -250,15 +192,13 @@ export default function ReservePage() {
     try {
       const localDateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`
 
-      const response = await fetch('/api/reservations', {
+      const response = await fetch('/api/marriage-reservations', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: selectedReservation.id,
           contact_id: formData.contact_id,
-          service_type_id: formData.service_type_id,
-          reservation_date: localDateStr, // YYYY-MM-DD without timezone conversion
-          reservation_time: formData.reservation_time,
+          reservation_date: localDateStr,
           notes: formData.notes
         })
       })
@@ -284,7 +224,7 @@ export default function ReservePage() {
     if (!confirm('Are you sure you want to delete this reservation?')) return
 
     try {
-      const response = await fetch(`/api/reservations?id=${reservationId}`, {
+      const response = await fetch(`/api/marriage-reservations?id=${reservationId}`, {
         method: 'DELETE'
       })
 
@@ -350,9 +290,16 @@ export default function ReservePage() {
     <AuthGuard>
       <DashboardLayout>
         <div className="space-y-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Book Reservations</h1>
-            <p className="text-gray-600">Click any future date to schedule a service reservation</p>
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <Button variant="ghost" onClick={() => window.history.back()} className="mb-2">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Marriage Ceremonies
+              </Button>
+              <h1 className="text-2xl font-bold text-gray-900">Reserve Marriage Ceremony</h1>
+              <p className="text-gray-600">Book marriage ceremony slots for future dates</p>
+            </div>
           </div>
 
           {/* Calendar */}
@@ -393,20 +340,18 @@ export default function ReservePage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 bg-blue-500 rounded"></div>
-                  <span>Days with reservations - Click to view</span>
+                  <span>Days with marriage reservations - Click to view</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 bg-gray-100 border rounded opacity-40"></div>
                   <span>Past dates (disabled)</span>
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground">
-                  Empty days - Click to book new reservation
+                  Empty days - Click to book new marriage reservation
                 </div>
               </div>
             </CardContent>
           </Card>
-
-
 
           {/* Date Picker for Viewing Reservations */}
           <Card>
@@ -444,7 +389,7 @@ export default function ReservePage() {
               {viewDate ? (
                 <div className="space-y-3">
                   <div className="text-sm font-medium text-muted-foreground">
-                    Reservations for {new Date(viewDate).toLocaleDateString('en-IN', {
+                    Marriage Reservations for {new Date(viewDate).toLocaleDateString('en-IN', {
                       weekday: 'long',
                       year: 'numeric',
                       month: 'long',
@@ -458,11 +403,6 @@ export default function ReservePage() {
                           <div key={reservation.id} className="flex items-center justify-between p-3 border rounded-lg">
                             <div className="flex-1">
                               <div className="font-medium">{reservation.contacts.name}</div>
-                              <div className="text-sm text-muted-foreground">
-                                {reservation.service_types.name}
-                                {reservation.type === 'regular' && ` • ${reservation.reservation_time}`}
-                                {reservation.type === 'marriage' && ' • Marriage Reservation'}
-                              </div>
                               {reservation.notes && (
                                 <div className="text-sm text-muted-foreground mt-1 italic">
                                   "{reservation.notes}"
@@ -470,50 +410,36 @@ export default function ReservePage() {
                               )}
                             </div>
                             <div className="flex gap-2 ml-4">
-                              {reservation.type === 'regular' && (
-                                <>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleEditReservation(reservation)}
-                                    className="h-8 w-8 p-0"
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleDeleteReservation(reservation.id)}
-                                    className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                  >
-                                    <Trash2 className="h-3 w-3" />
-                                  </Button>
-                                </>
-                              )}
-                              {reservation.type === 'marriage' && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => window.location.href = `/dashboard/marriage-reserve`}
-                                  className="text-xs"
-                                >
-                                  View in Marriage
-                                </Button>
-                              )}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEditReservation(reservation)}
+                                className="h-8 w-8 p-0"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDeleteReservation(reservation.id)}
+                                className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
                             </div>
                           </div>
                         ))
                       )
                     ) : (
                       <div className="text-center py-8 text-sm text-muted-foreground">
-                        No reservations for this date
+                        No marriage reservations for this date
                       </div>
                     )}
                   </div>
                 </div>
               ) : (
                 <div className="text-center py-8 text-sm text-muted-foreground">
-                  Select a date above to view reservations
+                  Select a date above to view marriage reservations
                 </div>
               )}
             </CardContent>
@@ -523,19 +449,25 @@ export default function ReservePage() {
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>{isEditing ? 'Edit Reservation' : 'Create Reservation'}</DialogTitle>
+                <DialogTitle>{isEditing ? 'Edit Marriage Reservation' : 'Create Marriage Reservation'}</DialogTitle>
                 <DialogDescription>
-                  {isEditing ? 'Update the service appointment details' : 'Schedule a service appointment for this date'}
+                  {isEditing ? 'Update the marriage reservation details' : 'Book a marriage ceremony slot for this date'}
                 </DialogDescription>
               </DialogHeader>
 
               {selectedDate && (
-                <ReservationForm
+                <MarriageReservationForm
                   selectedDate={`${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`}
                   contacts={contacts}
-                  serviceTypes={serviceTypes}
                   onSubmit={isEditing ? handleUpdateReservation : handleCreateReservation}
                   submitLabel={isEditing ? 'Update Reservation' : 'Create Reservation'}
+                  initialData={isEditing && selectedReservation ? {
+                    contact_id: selectedReservation.contact_id,
+                    notes: selectedReservation.notes || ''
+                  } : {
+                    contact_id: searchParams.get('contact') || '',
+                    notes: searchParams.get('notes') || ''
+                  }}
                 />
               )}
             </DialogContent>
@@ -543,5 +475,96 @@ export default function ReservePage() {
         </div>
       </DashboardLayout>
     </AuthGuard>
+  )
+}
+
+// Marriage Reservation Form Component
+function MarriageReservationForm({
+  initialData = {},
+  onSubmit,
+  submitLabel,
+  contacts,
+  selectedDate
+}: {
+  initialData?: Partial<{
+    contact_id: string
+    notes: string
+  }>
+  onSubmit: (data: {
+    contact_id: string
+    notes: string
+  }) => Promise<void>
+  submitLabel: string
+  contacts: Contact[]
+  selectedDate: string
+}) {
+  const [formData, setFormData] = useState({
+    contact_id: '',
+    notes: '',
+    ...initialData,
+  })
+
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+    try {
+      await onSubmit(formData)
+      // Reset form only if it's an add operation (no initialData provided)
+      if (!initialData.contact_id) {
+        setFormData({
+          contact_id: '',
+          notes: '',
+        })
+      }
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const updateFormData = (field: keyof typeof formData, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Selected Date Display */}
+      <div className="p-3 bg-gray-50 rounded-lg border">
+        <div className="text-sm font-medium text-gray-600">Reservation Date</div>
+        <div className="text-lg font-semibold">
+          {new Date(selectedDate + 'T12:00').toLocaleDateString('en-IN', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          })}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="contact_id">Client *</Label>
+        <SearchableContactSelector
+          value={formData.contact_id}
+          onChange={(contactId) => updateFormData('contact_id', contactId)}
+          placeholder="Search for a client..."
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="notes">Notes</Label>
+        <Textarea
+          id="notes"
+          value={formData.notes}
+          onChange={(e) => updateFormData('notes', e.target.value)}
+          placeholder="Any additional notes about the marriage reservation..."
+          rows={3}
+        />
+      </div>
+
+      <Button type="submit" className="w-full" disabled={isSubmitting}>
+        {isSubmitting ? 'Saving...' : submitLabel}
+      </Button>
+    </form>
   )
 }

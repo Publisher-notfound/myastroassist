@@ -3,7 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 
 const createCeremonySchema = z.object({
-  marriage_service_id: z.string().uuid('Invalid service ID'),
+  marriage_service_id: z.string().uuid('Invalid service ID').optional(),
+  reservation_id: z.string().uuid('Invalid reservation ID').optional(),
   ceremony_name: z.string().min(1, 'Ceremony name is required'),
   ceremony_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),
   ceremony_time: z.string().regex(/^\d{2}:\d{2}$/, 'Invalid time format'),
@@ -11,10 +12,25 @@ const createCeremonySchema = z.object({
   payment_amount: z.string().optional(),
   payment_status: z.enum(['paid', 'unpaid']).optional(),
   notes: z.string().optional(),
+  status: z.enum(['reserved', 'completed']).optional(),
+}).refine(data => data.marriage_service_id || data.reservation_id, {
+  message: "Either marriage_service_id or reservation_id must be provided"
 })
 
-const updateCeremonySchema = createCeremonySchema.extend({
+const updateCeremonySchema = z.object({
   id: z.string().uuid('Invalid ceremony ID'),
+  marriage_service_id: z.string().uuid('Invalid service ID').optional(),
+  reservation_id: z.string().uuid('Invalid reservation ID').optional(),
+  ceremony_name: z.string().min(1, 'Ceremony name is required'),
+  ceremony_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),
+  ceremony_time: z.string().regex(/^\d{2}:\d{2}$/, 'Invalid time format'),
+  duration: z.string().optional(),
+  payment_amount: z.string().optional(),
+  payment_status: z.enum(['paid', 'unpaid']).optional(),
+  notes: z.string().optional(),
+  status: z.enum(['reserved', 'completed']).optional(),
+}).refine(data => data.marriage_service_id || data.reservation_id, {
+  message: "Either marriage_service_id or reservation_id must be provided"
 })
 
 export async function GET(request: NextRequest) {
@@ -23,21 +39,28 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
 
     const serviceId = searchParams.get('serviceId')
+    const reservationId = searchParams.get('reservationId')
 
-    if (!serviceId) {
+    if (!serviceId && !reservationId) {
       return NextResponse.json(
-        { error: 'Service ID is required' },
+        { error: 'Either Service ID or Reservation ID is required' },
         { status: 400 }
       )
     }
 
-    // Get all ceremonies for a marriage service
-    const { data: ceremonies, error } = await supabase
+    let query = supabase
       .from('marriage_ceremonies')
       .select('*')
-      .eq('marriage_service_id', serviceId)
       .order('ceremony_date', { ascending: true })
       .order('ceremony_time', { ascending: true })
+
+    if (serviceId) {
+      query = query.eq('marriage_service_id', serviceId)
+    } else if (reservationId) {
+      query = query.eq('reservation_id', reservationId)
+    }
+
+    const { data: ceremonies, error } = await query
 
     if (error) throw error
 
@@ -65,7 +88,8 @@ export async function POST(request: NextRequest) {
 
     // Create ceremony record
     const ceremonyData = {
-      marriage_service_id: validatedData.marriage_service_id,
+      marriage_service_id: validatedData.marriage_service_id || null,
+      reservation_id: validatedData.reservation_id || null,
       ceremony_name: validatedData.ceremony_name,
       ceremony_date: validatedData.ceremony_date,
       ceremony_time: validatedData.ceremony_time,
@@ -73,6 +97,7 @@ export async function POST(request: NextRequest) {
       payment_amount: validatedData.payment_amount ? parseFloat(validatedData.payment_amount) : null,
       payment_status: validatedData.payment_status || 'unpaid',
       notes: validatedData.notes || null,
+      status: validatedData.status || (validatedData.reservation_id ? 'reserved' : 'completed'),
     }
 
     const { data, error } = await supabase
@@ -115,6 +140,8 @@ export async function PUT(request: NextRequest) {
 
     // Update ceremony record
     const ceremonyData = {
+      marriage_service_id: validatedData.marriage_service_id || null,
+      reservation_id: validatedData.reservation_id || null,
       ceremony_name: validatedData.ceremony_name,
       ceremony_date: validatedData.ceremony_date,
       ceremony_time: validatedData.ceremony_time,
@@ -122,6 +149,7 @@ export async function PUT(request: NextRequest) {
       payment_amount: validatedData.payment_amount ? parseFloat(validatedData.payment_amount) : null,
       payment_status: validatedData.payment_status || 'unpaid',
       notes: validatedData.notes || null,
+      status: validatedData.status || (validatedData.reservation_id ? 'reserved' : 'completed'),
     }
 
     const { data, error } = await supabase

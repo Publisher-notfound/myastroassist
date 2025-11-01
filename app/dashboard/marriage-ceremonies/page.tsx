@@ -246,7 +246,7 @@ export default function MarriageCeremoniesPage() {
             </Card>
 
             {/* Reserve Marriage Service */}
-            <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push('/dashboard/reserve?type=marriage')}>
+            <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push('/dashboard/marriage-reserve')}>
               <CardHeader className="text-center pb-2">
                 <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
                   <Clock className="h-6 w-6 text-green-600" />

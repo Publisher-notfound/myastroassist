@@ -34,9 +34,10 @@ interface ReservationFormProps {
   contacts: Contact[]
   serviceTypes: ServiceType[]
   selectedDate: string // YYYY-MM-DD format
+  isMarriageReservation?: boolean // New prop to indicate marriage reservation
 }
 
-export function ReservationForm({ initialData = {}, onSubmit, submitLabel, contacts, serviceTypes, selectedDate }: ReservationFormProps) {
+export function ReservationForm({ initialData = {}, onSubmit, submitLabel, contacts, serviceTypes, selectedDate, isMarriageReservation = false }: ReservationFormProps) {
   const [formData, setFormData] = useState<ReservationFormData>({
     contact_id: '',
     service_type_id: '',
@@ -94,34 +95,38 @@ export function ReservationForm({ initialData = {}, onSubmit, submitLabel, conta
         />
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="service_type_id">Service Type *</Label>
-        <Select
-          value={formData.service_type_id}
-          onValueChange={(value) => updateFormData('service_type_id', value)}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select service type" />
-          </SelectTrigger>
-          <SelectContent>
-            {serviceTypes.map((type) => (
-              <SelectItem key={type.id} value={type.id}>
-                {type.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {!isMarriageReservation && (
+        <>
+          <div className="space-y-2">
+            <Label htmlFor="service_type_id">Service Type *</Label>
+            <Select
+              value={formData.service_type_id}
+              onValueChange={(value) => updateFormData('service_type_id', value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select service type" />
+              </SelectTrigger>
+              <SelectContent>
+                {serviceTypes.map((type) => (
+                  <SelectItem key={type.id} value={type.id}>
+                    {type.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="reservation_time">Appointment Time *</Label>
-        <Input
-          id="reservation_time"
-          type="time"
-          value={formData.reservation_time}
-          onChange={(e) => updateFormData('reservation_time', e.target.value)}
-        />
-      </div>
+          <div className="space-y-2">
+            <Label htmlFor="reservation_time">Appointment Time *</Label>
+            <Input
+              id="reservation_time"
+              type="time"
+              value={formData.reservation_time}
+              onChange={(e) => updateFormData('reservation_time', e.target.value)}
+            />
+          </div>
+        </>
+      )}
 
       <div className="space-y-2">
         <Label htmlFor="notes">Notes</Label>

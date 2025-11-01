@@ -24,6 +24,8 @@ interface MarriageService {
   total_payment: number
   completed_ceremonies: number
   has_ceremonies: boolean
+  type: 'service' | 'reservation'
+  reservation_date?: string
 }
 
 export default function MarriageServicesPage() {
@@ -101,12 +103,45 @@ export default function MarriageServicesPage() {
             ceremony_count,
             total_payment,
             completed_ceremonies,
-            has_ceremonies: ceremony_count > 0
+            has_ceremonies: ceremony_count > 0,
+            type: 'service' as const
           }
         })
       )
 
-      setMarriageServices(servicesWithCounts)
+      // Fetch marriage reservations
+      const { data: reservationsData, error: reservationsError } = await supabase
+        .from("marriage_reservations")
+        .select(`
+          *,
+          contacts (name, phone)
+        `)
+        .eq("status", "active")
+        .order("created_at", { ascending: false })
+
+      if (reservationsError) throw reservationsError
+
+      // Convert reservations to service-like format for display
+      const reservationsAsServices = (reservationsData || []).map((reservation: any) => ({
+        id: reservation.id,
+        contact_id: reservation.contact_id,
+        service_type_id: 'marriage-ceremony', // Mock service type ID
+        created_at: reservation.created_at,
+        payment_amount: null, // Reservations don't have payment amounts
+        contacts: reservation.contacts,
+        service_types: { name: 'Marriage Ceremony' }, // Mock service type
+        ceremony_count: 0, // Reservations don't have ceremonies yet
+        total_payment: 0, // No payment for reservations
+        completed_ceremonies: 0,
+        has_ceremonies: false,
+        type: 'reservation' as const,
+        reservation_date: reservation.reservation_date
+      }))
+
+      // Combine services and reservations
+      const allItems = [...servicesWithCounts, ...reservationsAsServices]
+
+      setMarriageServices(allItems)
     } catch (error) {
       console.error("Error fetching marriage services:", error)
     } finally {
@@ -350,16 +385,16 @@ export default function MarriageServicesPage() {
                         <div className="flex-1">
                           <div className="flex flex-wrap items-center gap-2 mb-3">
                             <h3 className="font-medium text-lg">{service.contacts.name}</h3>
-                            <Badge variant="outline" className="text-xs">
-                              {service.ceremony_count} ceremonies
+                            <Badge variant={service.type === 'reservation' ? 'default' : 'outline'} className="text-xs">
+                              {service.type === 'reservation' ? 'Reservation' : `${service.ceremony_count} ceremonies`}
                             </Badge>
-                            {service.ceremony_count === 0 && (
+                            {service.type === 'service' && service.ceremony_count === 0 && (
                               <Badge variant="secondary" className="text-xs">Setup Needed</Badge>
                             )}
-                            {service.ceremony_count > 0 && service.completed_ceremonies < service.ceremony_count && (
+                            {service.type === 'service' && service.ceremony_count > 0 && service.completed_ceremonies < service.ceremony_count && (
                               <Badge variant="default" className="text-xs">In Progress</Badge>
                             )}
-                            {service.completed_ceremonies === service.ceremony_count && service.ceremony_count > 0 && (
+                            {service.type === 'service' && service.completed_ceremonies === service.ceremony_count && service.ceremony_count > 0 && (
                               <Badge variant="default" className="bg-green-100 text-green-800 text-xs">Completed</Badge>
                             )}
                           </div>
@@ -381,15 +416,27 @@ export default function MarriageServicesPage() {
                         </div>
 
                         <div className="flex sm:flex-col gap-2 sm:w-auto w-full">
-                          <Button
-                            variant="outline"
-                            onClick={() => router.push(`/dashboard/marriage-ceremonies/${service.id}`)}
-                            className="w-full sm:w-auto whitespace-nowrap"
-                            size="sm"
-                          >
-                            <ExternalLink className="h-3 w-3 mr-2" />
-                            Manage Ceremonies
-                          </Button>
+                          {service.type === 'service' ? (
+                            <Button
+                              variant="outline"
+                              onClick={() => router.push(`/dashboard/marriage-ceremonies/${service.id}`)}
+                              className="w-full sm:w-auto whitespace-nowrap"
+                              size="sm"
+                            >
+                              <ExternalLink className="h-3 w-3 mr-2" />
+                              Manage Ceremonies
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              onClick={() => router.push(`/dashboard/marriage-ceremonies/reservation/${service.id}`)}
+                              className="w-full sm:w-auto whitespace-nowrap"
+                              size="sm"
+                            >
+                              <ExternalLink className="h-3 w-3 mr-2" />
+                              Reserve Ceremonies
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </div>
