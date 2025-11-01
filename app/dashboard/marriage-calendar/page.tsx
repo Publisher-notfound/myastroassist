@@ -116,7 +116,7 @@ export default function MarriageCalendarPage() {
         marriageServices = services || []
       }
 
-      // Fetch marriage reservations for the month
+      // Fetch marriage reservations for the month (both types)
       const { data: marriageReservations, error: reservationsError } = await supabase
         .from("marriage_reservations")
         .select(`
@@ -129,6 +129,23 @@ export default function MarriageCalendarPage() {
         .order("reservation_date", { ascending: true })
 
       if (reservationsError) throw reservationsError
+
+      // Fetch regular reservations with "Marriage Ceremony" service type (legacy support)
+      const { data: regularMarriageReservations, error: regularReservationsError } = await supabase
+        .from("reservations")
+        .select(`
+          *,
+          contacts (name, phone),
+          service_types (name)
+        `)
+        .gte("reservation_date", startDate.toISOString().split('T')[0])
+        .lte("reservation_date", endDate.toISOString().split('T')[0])
+        .eq("status", "active")
+        .eq("service_types.name", "Marriage Ceremony")
+        .order("reservation_date", { ascending: true })
+        .order("reservation_time", { ascending: true })
+
+      if (regularReservationsError) throw regularReservationsError
 
       // Group ceremonies by date
       const dateMap = new Map<string, CalendarData>()
@@ -227,6 +244,45 @@ export default function MarriageCalendarPage() {
             id: "", // No service ID
             contacts: reservation.contacts,
             service_types: { name: "Marriage Ceremony" } // Hardcoded service type
+          }
+        }
+
+        dateData.ceremonies.push(reservationEntry)
+        // Don't add to revenue since reservations don't have payments
+        dateData.ceremonyCount += 1
+      })
+
+      // Add regular marriage reservations (legacy support) to the map
+      regularMarriageReservations?.forEach((reservation: any) => {
+        const reservationDate = reservation.reservation_date
+
+        if (!dateMap.has(reservationDate)) {
+          dateMap.set(reservationDate, {
+            date: reservationDate,
+            ceremonies: [],
+            totalRevenue: 0,
+            ceremonyCount: 0
+          })
+        }
+
+        const dateData = dateMap.get(reservationDate)!
+
+        // Add a synthetic ceremony entry for the regular marriage reservation
+        const reservationEntry: MarriageCeremony = {
+          id: `regular-reservation-${reservation.id}`,
+          marriage_service_id: "", // No service ID for reservations
+          ceremony_name: "Marriage Reservation (Legacy)",
+          ceremony_date: reservationDate,
+          ceremony_time: reservation.reservation_time || "00:00",
+          duration: null,
+          payment_amount: null, // Regular reservations don't have payment amounts in this context
+          payment_status: "unpaid", // Regular reservations are unpaid by default
+          notes: reservation.notes || "Legacy marriage reservation from general reserve page",
+          created_at: reservation.created_at,
+          services: {
+            id: "", // No service ID
+            contacts: reservation.contacts,
+            service_types: reservation.service_types // Use the actual service type
           }
         }
 
