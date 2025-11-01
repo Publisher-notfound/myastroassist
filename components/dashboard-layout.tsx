@@ -28,9 +28,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     { name: "Dashboard", href: "/dashboard", icon: BarChart3 },
     { name: "Contacts", href: "/dashboard/contacts", icon: Users },
     { name: "Services", href: "/dashboard/services", icon: FileText },
+    { name: "Calendar", href: "/dashboard/calendar", icon: Calendar },
+    { name: "Marriage Ceremonies", href: "/dashboard/marriage-ceremonies", icon: CalendarIcon },
+    { name: "Marriage Calendar", href: "/dashboard/marriage-calendar", icon: Calendar },
     { name: "Backlogs", href: "/dashboard/backlogs", icon: CalendarIcon },
     { name: "Expenses", href: "/dashboard/expenses", icon: DollarSign },
-    { name: "Calendar", href: "/dashboard/calendar", icon: Calendar },
     { name: "Reserve", href: "/dashboard/reserve", icon: Clock },
     { name: "Reports", href: "/dashboard/reports", icon: BarChart3 },
   ]
